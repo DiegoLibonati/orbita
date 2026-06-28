@@ -109,19 +109,21 @@ For a coverage report:
 npm run test:coverage
 ```
 
-## Continuous Integration
+## Continuous Integration & Deployment
 
-The repository ships with a **GitHub Actions** pipeline defined in [`.github/workflows/ci.yml`](.github/workflows/ci.yml). It runs automatically on every `push` and `pull_request` targeting the `main` branch.
+The repository ships with a **GitHub Actions** pipeline defined in [`.github/workflows/ci.yml`](.github/workflows/ci.yml). It runs automatically on every `push` and `pull_request` targeting the `main` branch. On a push to `main` it goes one step further: it publishes the production image to **GitHub Container Registry (GHCR)** and deploys it to the server.
+
+In-progress runs for the same ref are cancelled automatically (`concurrency` group), so only the latest commit is built.
 
 ### Pipeline overview
 
 ```
-                      ┌─── PR or push to main ───┐
-                      ▼                          ▼
-┌──────────────────────┐  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
-│   lint-and-audit     │─▶│     testing      │─▶│      build       │─▶│   build-docker   │
-│ eslint · type-check  │  │       jest       │  │   tsc + vite     │  │ dev + prod images│
-└──────────────────────┘  └──────────────────┘  └──────────────────┘  └──────────────────┘
+                 ┌──── PR or push to main ────┐                 push to main only
+                 ▼                            ▼                         │
+┌───────────────┐ ┌─────────┐ ┌─────────┐ ┌──────────────────┐ ┌──────────────────┐
+│ lint-and-audit│▶│ testing │▶│  build  │▶│      docker      │▶│      deploy      │
+│ eslint · tsc  │ │  jest   │ │ tsc+vite│ │ build & push GHCR │ │ scp + ssh deploy │
+└───────────────┘ └─────────┘ └─────────┘ └──────────────────┘ └──────────────────┘
 ```
 
 ### Validation jobs (run on every PR and push)
@@ -129,17 +131,33 @@ The repository ships with a **GitHub Actions** pipeline defined in [`.github/wor
 1. **`lint-and-audit`** — `npm run lint` (ESLint) and `npm run type-check` (`tsc --noEmit`).
 2. **`testing`** — `npm run test` (Jest with the jsdom environment). Depends on `lint-and-audit`.
 3. **`build`** — `npm run build`, which type-checks with `tsc` and produces the Vite production bundle. Depends on `testing`.
-4. **`build-docker`** — smoke-builds both `Dockerfile.development` and `Dockerfile.production` to verify the container images compile end-to-end. Depends on `build`.
+
+### Release & deploy jobs (push to `main` only)
+
+4. **`docker`** — builds the production image from `Dockerfile.production` with Docker Buildx and a GitHub Actions layer cache, then pushes it to GHCR as `ghcr.io/diegolibonati/orbita:latest` and `ghcr.io/diegolibonati/orbita:sha-<commit>`. On pull requests the image is built for validation but **not** pushed. Depends on `build`.
+5. **`deploy`** — copies `prod.docker-compose.yml` to the server over SCP, then pulls the freshly published image and recreates the container over SSH (`docker compose pull && up -d`, followed by `docker image prune`). Runs only on push to `main`, inside a `production` environment, and is serialized through a `deploy-production` concurrency group. Depends on `docker`.
 
 Each job runs on `ubuntu-latest`, pins the Node version via [`.nvmrc`](.nvmrc) using `actions/setup-node@v4` with npm cache, and installs dependencies with `npm ci` for reproducibility. Jobs are chained with `needs:`, so a failure on any earlier stage short-circuits the rest of the pipeline.
 
+### Required secrets
+
+The deploy job authenticates to GHCR with the built-in `GITHUB_TOKEN` and reaches the server through the following repository **secrets** (never exposed to pull requests):
+
+| Secret        | Purpose                                             |
+| ------------- | --------------------------------------------------- |
+| `SSH_HOST`    | Server hostname or IP                               |
+| `SSH_USER`    | SSH user                                            |
+| `SSH_KEY`     | Private SSH key for that user                       |
+| `SSH_PORT`    | SSH port (optional, defaults to `22`)               |
+| `DEPLOY_PATH` | Directory on the server that holds the compose file |
+
 ### Where the build outputs live
 
-| Output                                 | Location                     |
-| -------------------------------------- | ---------------------------- |
-| Lint, type-check, test, and build logs | **Actions** tab on GitHub    |
-| Vite production bundle (`dist/`)       | Ephemeral, inside the runner |
-| Docker images (`app:dev`, `app:prod`)  | Ephemeral, inside the runner |
+| Output                                 | Location                                                             |
+| -------------------------------------- | -------------------------------------------------------------------- |
+| Lint, type-check, test, and build logs | **Actions** tab on GitHub                                            |
+| Vite production bundle (`dist/`)       | Ephemeral, inside the runner                                         |
+| Production Docker image                | **GHCR** — `ghcr.io/diegolibonati/orbita:latest` and `:sha-<commit>` |
 
 ### Running the same checks locally
 
@@ -154,9 +172,8 @@ npm test
 # build
 npm run build
 
-# build-docker
-docker build -f Dockerfile.development -t app:dev .
-docker build -f Dockerfile.production -t app:prod .
+# docker (build only; the pipeline also pushes this image to GHCR on main)
+docker build -f Dockerfile.production -t ghcr.io/diegolibonati/orbita:latest .
 ```
 
 ## Security Audit
@@ -182,8 +199,14 @@ For a production-like or containerized environment, Orbita ships with Docker con
 
 ### Prod
 
-1. Execute: `docker-compose -f prod.docker-compose.yml build --no-cache` in the terminal
-2. Once built, execute: `docker-compose -f prod.docker-compose.yml up --force-recreate` in the terminal
+The production compose file no longer builds locally — it **pulls** the image published to GHCR by the CI/CD pipeline (`ghcr.io/diegolibonati/orbita:latest`).
+
+1. Execute: `docker compose -f prod.docker-compose.yml pull` in the terminal
+2. Execute: `docker compose -f prod.docker-compose.yml up -d` in the terminal
+
+The container listens on `8080` and is exposed on host port **9002** by default. Override it with the `APP_PORT` environment variable, e.g. `APP_PORT=8000 docker compose -f prod.docker-compose.yml up -d`.
+
+> The image must exist in GHCR first. It is published automatically on every push to `main`; to build and push it manually run `docker build -f Dockerfile.production -t ghcr.io/diegolibonati/orbita:latest .` followed by `docker push ghcr.io/diegolibonati/orbita:latest` (requires `docker login ghcr.io`).
 
 ## Known Issues
 
