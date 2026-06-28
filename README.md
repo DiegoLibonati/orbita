@@ -122,7 +122,7 @@ In-progress runs for the same ref are cancelled automatically (`concurrency` gro
                  ▼                            ▼                         │
 ┌───────────────┐ ┌─────────┐ ┌─────────┐ ┌──────────────────┐ ┌──────────────────┐
 │ lint-and-audit│▶│ testing │▶│  build  │▶│      docker      │▶│      deploy      │
-│ eslint · tsc  │ │  jest   │ │ tsc+vite│ │ build & push GHCR │ │ scp + ssh deploy │
+│ eslint · tsc  │ │  jest   │ │ tsc+vite│ │ build & push GHCR │ │ ssh via cf tunnel│
 └───────────────┘ └─────────┘ └─────────┘ └──────────────────┘ └──────────────────┘
 ```
 
@@ -135,21 +135,22 @@ In-progress runs for the same ref are cancelled automatically (`concurrency` gro
 ### Release & deploy jobs (push to `main` only)
 
 4. **`docker`** — builds the production image from `Dockerfile.production` with Docker Buildx and a GitHub Actions layer cache, then pushes it to GHCR as `ghcr.io/diegolibonati/orbita:latest` and `ghcr.io/diegolibonati/orbita:sha-<commit>`. On pull requests the image is built for validation but **not** pushed. Depends on `build`.
-5. **`deploy`** — copies `prod.docker-compose.yml` to the server over SCP, then pulls the freshly published image and recreates the container over SSH (`docker compose pull && up -d`, followed by `docker image prune`). Runs only on push to `main`, inside a `production` environment, and is serialized through a `deploy-production` concurrency group. Depends on `docker`.
+5. **`deploy`** — reaches the server through a **Cloudflare Access** tunnel instead of a public SSH port. It installs `cloudflared` (pinned to `2026.5.1` — newer `2026.6.x` releases have a service-token bug), writes the SSH key and an SSH config whose `ProxyCommand` runs `cloudflared access ssh` authenticated with a Cloudflare Access service token, then copies `prod.docker-compose.yml` to the server over `scp` and pulls the freshly published image and recreates the container over `ssh` (`docker compose pull && up -d`, followed by `docker image prune`). Runs only on push to `main`, inside a `production` environment, and is serialized through a `deploy-production` concurrency group. Depends on `docker`.
 
 Each job runs on `ubuntu-latest`, pins the Node version via [`.nvmrc`](.nvmrc) using `actions/setup-node@v4` with npm cache, and installs dependencies with `npm ci` for reproducibility. Jobs are chained with `needs:`, so a failure on any earlier stage short-circuits the rest of the pipeline.
 
 ### Required secrets
 
-The deploy job authenticates to GHCR with the built-in `GITHUB_TOKEN` and reaches the server through the following repository **secrets** (never exposed to pull requests):
+The deploy job authenticates to GHCR with the built-in `GITHUB_TOKEN` and reaches the server through a **Cloudflare Access** tunnel using the following repository **secrets** (never exposed to pull requests):
 
-| Secret        | Purpose                                             |
-| ------------- | --------------------------------------------------- |
-| `SSH_HOST`    | Server hostname or IP                               |
-| `SSH_USER`    | SSH user                                            |
-| `SSH_KEY`     | Private SSH key for that user                       |
-| `SSH_PORT`    | SSH port (optional, defaults to `22`)               |
-| `DEPLOY_PATH` | Directory on the server that holds the compose file |
+| Secret                    | Purpose                                                        |
+| ------------------------- | -------------------------------------------------------------- |
+| `SSH_HOST`                | Cloudflare Access SSH hostname of the server                   |
+| `SSH_USER`                | SSH user                                                       |
+| `SSH_KEY`                 | Private SSH key for that user                                  |
+| `CF_ACCESS_CLIENT_ID`     | Cloudflare Access service token client ID (`ProxyCommand`)     |
+| `CF_ACCESS_CLIENT_SECRET` | Cloudflare Access service token client secret (`ProxyCommand`) |
+| `DEPLOY_PATH`             | Directory on the server that holds the compose file            |
 
 ### Where the build outputs live
 
