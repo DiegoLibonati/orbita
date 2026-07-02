@@ -1,4 +1,7 @@
+# robots.txt — https://orbita.libonatis.com.ar/robots.txt
+# Do not block CSS, JS or pages you want indexed.
+
 User-agent: *
 Allow: /
 
-Sitemap: https://your-site.com/sitemap.xml
+Sitemap: https://orbita.libonatis.com.ar/sitemap.xml

@@ -3,33 +3,62 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#ffffff" />
 
-    <title>Orbita</title>
+    <title>Orbita — 3D Object Viewer in the Browser | Three.js</title>
 
     <meta
       name="description"
-      content="Orbita is a browser-based 3D object viewer built with Three.js and vanilla TypeScript."
+      content="Orbita is a free browser-based 3D object viewer built with Three.js. Explore 14 built-in geometries, import your own GLTF/GLB models and tweak them in real time."
     />
-    <meta name="keywords" content="Orbita, orbita" />
     <meta name="author" content="Diego Libonati" />
 
-    <meta property="og:title" content="Orbita" />
+    <!-- Canonical URL of this page -->
+    <link rel="canonical" href="https://orbita.libonatis.com.ar/" />
+
+    <!-- Open Graph (social previews) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Orbita" />
+    <meta property="og:locale" content="en_US" />
+    <meta
+      property="og:title"
+      content="Orbita — 3D Object Viewer in the Browser"
+    />
     <meta
       property="og:description"
-      content="Orbita is a browser-based 3D object viewer built with Three.js and vanilla TypeScript."
+      content="Explore 14 built-in Three.js geometries, import your own GLTF/GLB models and customize them in real time — right in your browser."
     />
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://your-site.com" />
-    <meta property="og:image" content="/icon-192.png" />
+    <meta property="og:url" content="https://orbita.libonatis.com.ar/" />
+    <meta
+      property="og:image"
+      content="https://orbita.libonatis.com.ar/og-image.png"
+    />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Orbita — browser-based 3D object viewer"
+    />
 
+    <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Orbita" />
+    <meta
+      name="twitter:title"
+      content="Orbita — 3D Object Viewer in the Browser"
+    />
     <meta
       name="twitter:description"
-      content="Orbita is a browser-based 3D object viewer built with Three.js and vanilla TypeScript."
+      content="Explore 14 built-in Three.js geometries, import your own GLTF/GLB models and customize them in real time — right in your browser."
     />
-    <meta name="twitter:image" content="/icon-192.png" />
-    <meta name="twitter:creator" content="@your-user" />
+    <meta
+      name="twitter:image"
+      content="https://orbita.libonatis.com.ar/og-image.png"
+    />
+    <meta
+      name="twitter:image:alt"
+      content="Orbita — browser-based 3D object viewer"
+    />
+    <meta name="twitter:creator" content="@DieLibonati" />
 
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <link rel="manifest" href="/manifest.json" />
@@ -40,8 +69,66 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Roboto:wght@100;300;400;500;700&display=swap"
     />
+
+    <!-- Structured data: schema.org / JSON-LD -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Orbita",
+        "url": "https://orbita.libonatis.com.ar/",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "Web browser",
+        "description": "Orbita is a free browser-based 3D object viewer built with Three.js. Explore 14 built-in geometries, import your own GLTF/GLB models and tweak them in real time.",
+        "image": "https://orbita.libonatis.com.ar/og-image.png",
+        "inLanguage": "en",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "author": {
+          "@type": "Person",
+          "name": "Diego Libonati",
+          "url": "https://www.diegolibonati.com.ar",
+          "sameAs": ["https://x.com/DieLibonati"]
+        }
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Orbita",
+        "url": "https://orbita.libonatis.com.ar/",
+        "description": "Browser-based 3D object viewer built with Three.js and vanilla TypeScript.",
+        "inLanguage": "en"
+      }
+    </script>
   </head>
   <body>
+    <!--
+      SEO / accessibility content kept OUTSIDE #app on purpose: index.ts calls
+      app.replaceChildren(...) on mount, which would wipe anything inside #app
+      from the rendered DOM (Googlebot renders with JS). Kept here it survives in
+      both the served HTML and the rendered DOM. Visually hidden, exposed to
+      crawlers and screen readers.
+    -->
+    <div class="visually-hidden">
+      <h1>Orbita — browser-based 3D object viewer</h1>
+      <p>
+        Orbita is a free 3D object viewer that runs entirely in your browser.
+        Inspect 14 built-in Three.js geometries — box, cone, capsule, sphere,
+        torus knot and more — import your own GLTF or GLB models, and adjust
+        position, scale and color in real time with orbit controls.
+      </p>
+    </div>
+    <noscript>
+      Orbita is a browser-based 3D object viewer built with Three.js. This app
+      needs JavaScript to render 3D content — please enable JavaScript in your
+      browser.
+    </noscript>
+
     <div id="app"></div>
     <script type="module" src="./src/index.ts" defer></script>
   </body>

@@ -7,7 +7,7 @@ const onInit = (): void => {
   if (!app) throw new Error(`You must render a container to mount the app.`);
 
   const orbitaPage = OrbitaPage();
-  app.appendChild(orbitaPage);
+  app.replaceChildren(orbitaPage);
 };
 
 document.addEventListener("DOMContentLoaded", onInit);
